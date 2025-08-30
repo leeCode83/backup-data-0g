@@ -2,10 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ZgFile, Indexer } from '@0glabs/0g-ts-sdk';
 import { ethers } from 'ethers';
 import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'crypto';
+import * as path from 'path';
+import * as fs from 'fs';
 
 @Injectable()
 export class OgStorageService {
-    private readonly logger = new Logger(OgStorageService.name);
+    public readonly logger = new Logger(OgStorageService.name);
     private signer: ethers.Wallet;
     private indexer: Indexer;
 
@@ -58,6 +61,43 @@ export class OgStorageService {
             return { rootHash: tx.rootHash as string, txHash: tx.txHash as string };
         } catch (error) {
             this.logger.error('Gagal mengunggah file ke 0G Storage', error.stack);
+            throw error;
+        }
+    }
+
+    async downloadFile(rootHash: string): Promise<{ filePath: string; originalFileName: string }> {
+        if (!this.indexer) {
+            throw new Error('OgStorageService not initialized. Call `initialize` first.');
+        }
+
+        try {
+            // Membuat nama file sementara yang unik
+            const randomName = randomBytes(16).toString('hex');
+            const outputPath = path.join(__dirname, 'temp', randomName);
+
+            // Periksa apakah direktori 'temp' ada, jika tidak, buatlah
+            const tempDir = path.join(__dirname, 'temp');
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir);
+            }
+
+            // Memulai proses unduh dengan verifikasi bukti Merkle
+            const withProof = true;
+            const err = await this.indexer.download(rootHash, outputPath, withProof);
+
+            if (err !== null) {
+                // Hapus file yang mungkin tidak lengkap
+                if (fs.existsSync(outputPath)) {
+                    fs.unlinkSync(outputPath);
+                }
+                throw new Error(`Download error: ${err}`);
+            }
+
+            this.logger.log(`Download successful for rootHash: ${rootHash}`);
+
+            return { filePath: outputPath, originalFileName: rootHash };
+        } catch (error) {
+            this.logger.error('Gagal mengunduh file dari 0G Storage', error.stack);
             throw error;
         }
     }
