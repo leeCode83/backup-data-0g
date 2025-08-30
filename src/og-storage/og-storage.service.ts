@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ZgFile, Indexer, Batcher, KvClient } from '@0glabs/0g-ts-sdk';
+import { ZgFile, Indexer } from '@0glabs/0g-ts-sdk';
 import { ethers } from 'ethers';
 import { ConfigService } from '@nestjs/config';
 
@@ -13,9 +13,8 @@ export class OgStorageService {
 
     async initialize(privateKey: string): Promise<void> {
         // Network Constants
-        const RPC_URL = this.configService.get<string>('RPC_URL');
-        const INDEXER_RPC = this.configService.get<string>('INDEXER_URL')!;
-
+        const RPC_URL = this.configService.get<string>('RPC_URL') || "https://evmrpc-testnet.0g.ai/";
+        const INDEXER_RPC = this.configService.get<string>('INDEXER_RPC') || "https://indexer-storage-testnet-turbo.0g.ai";
         try {
             const provider = new ethers.JsonRpcProvider(RPC_URL);
             this.signer = new ethers.Wallet(privateKey, provider);
@@ -45,7 +44,7 @@ export class OgStorageService {
             console.log("File Root Hash:", tree?.rootHash());
 
             // Upload to network
-            const RPC_URL = this.configService.get<string>('RPC_URL')!;
+            const RPC_URL = this.configService.get<string>('RPC_URL') || "https://evmrpc-testnet.0g.ai/";
             const [tx, uploadErr] = await this.indexer.upload(file, RPC_URL, this.signer);
             if (uploadErr !== null) {
                 throw new Error(`Upload error: ${uploadErr}`);
