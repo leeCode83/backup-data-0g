@@ -20,8 +20,9 @@ export class OgStorageController {
         }
 
         try {
-            await this.ogStorageService.initialize(privateKey);
-            const uploadResult = await this.ogStorageService.uploadFile(filePath);
+            const formattedPrivateKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
+
+            const uploadResult = await this.ogStorageService.uploadFile(formattedPrivateKey, filePath);
 
             return res.status(HttpStatus.OK).json({
                 message: 'File berhasil dicadangkan.',
@@ -48,9 +49,9 @@ export class OgStorageController {
         }
 
         try {
-            await this.ogStorageService.initialize(privateKey);
+            const formattedPrivateKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
 
-            const downloadResult = await this.ogStorageService.downloadFile(rootHash);
+            const downloadResult = await this.ogStorageService.downloadFile(formattedPrivateKey, rootHash);
 
             // Menggunakan res.download untuk mengirim file ke pengguna
             return res.download(downloadResult.filePath, downloadResult.originalFileName, (err) => {

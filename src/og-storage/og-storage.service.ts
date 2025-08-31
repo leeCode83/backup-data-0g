@@ -9,30 +9,39 @@ import * as fs from 'fs';
 @Injectable()
 export class OgStorageService {
     public readonly logger = new Logger(OgStorageService.name);
-    private signer: ethers.Wallet;
-    private indexer: Indexer;
+    // private signer: ethers.Wallet;
+    // private indexer: Indexer;
+    private clients = new Map<string, { signer: ethers.Wallet; indexer: Indexer }>();
 
     constructor(private configService: ConfigService) { }
 
-    async initialize(privateKey: string): Promise<void> {
+    async initialize(privateKey: string): Promise<{ signer: ethers.Wallet; indexer: Indexer }> {
+        if (this.clients.has(privateKey)) {
+            this.logger.log(`Using cached client for private key.`);
+            return this.clients.get(privateKey)!;
+        }
+
         // Network Constants
         const RPC_URL = this.configService.get<string>('RPC_URL') || "https://evmrpc-testnet.0g.ai/";
         const INDEXER_RPC = this.configService.get<string>('INDEXER_RPC') || "https://indexer-storage-testnet-turbo.0g.ai";
         try {
             const provider = new ethers.JsonRpcProvider(RPC_URL);
-            this.signer = new ethers.Wallet(privateKey, provider);
-            this.indexer = new Indexer(INDEXER_RPC);
-            this.logger.log('0G Storage client initialized successfully.');
+            const signer = new ethers.Wallet(privateKey, provider);
+            const indexer = new Indexer(INDEXER_RPC);
+
+            const client = { signer, indexer };
+            this.clients.set(privateKey, client);
+            this.logger.log('0G Storage client initialized and cached successfully.');
+            return client;
         } catch (error) {
             this.logger.error('Failed to initialize 0G Storage client.', error.stack);
             throw new Error('Initialization failed.');
         }
     }
 
-    async uploadFile(filePath: string): Promise<{ rootHash: string; txHash: string }> {
-        if (!this.signer || !this.indexer) {
-            throw new Error('OgStorageService not initialized. Call `initialize` first.');
-        }
+    async uploadFile(privateKey: string, filePath: string): Promise<{ rootHash: string; txHash: string }> {
+        const client = await this.initialize(privateKey);
+
         try {
             // Create file object from file path
             const file = await ZgFile.fromFilePath(filePath);
@@ -48,7 +57,7 @@ export class OgStorageService {
 
             // Upload to network
             const RPC_URL = this.configService.get<string>('RPC_URL') || "https://evmrpc-testnet.0g.ai/";
-            const [tx, uploadErr] = await this.indexer.upload(file, RPC_URL, this.signer);
+            const [tx, uploadErr] = await client.indexer.upload(file, RPC_URL, client.signer);
             if (uploadErr !== null) {
                 throw new Error(`Upload error: ${uploadErr}`);
             }
@@ -65,10 +74,8 @@ export class OgStorageService {
         }
     }
 
-    async downloadFile(rootHash: string): Promise<{ filePath: string; originalFileName: string }> {
-        if (!this.indexer) {
-            throw new Error('OgStorageService not initialized. Call `initialize` first.');
-        }
+    async downloadFile(privateKey: string, rootHash: string): Promise<{ filePath: string; originalFileName: string }> {
+        const client = await this.initialize(privateKey);
 
         try {
             // Membuat nama file sementara yang unik
@@ -83,7 +90,7 @@ export class OgStorageService {
 
             // Memulai proses unduh dengan verifikasi bukti Merkle
             const withProof = true;
-            const err = await this.indexer.download(rootHash, outputPath, withProof);
+            const err = await client.indexer.download(rootHash, outputPath, withProof);
 
             if (err !== null) {
                 // Hapus file yang mungkin tidak lengkap
