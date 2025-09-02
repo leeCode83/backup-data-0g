@@ -15,25 +15,32 @@ datasource db {
 
 // Model untuk menyimpan data pengguna
 model User {
-  id          Int      @id @default(autoincrement())
+  id            String   @id @default(cuid())
   walletAddress String   @unique // Alamat dompet pengguna
   privateKey    String   @unique // Private key pengguna (sebaiknya dienkripsi!)
-  files       File[]   // Relasi ke model File
+  boxes         Box[] // Relasi ke model File
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model Box {
+  id                 String   @id @default(cuid())
+  ownerWalletAddress String
+  users              User     @relation(fields: [ownerWalletAddress], references: [walletAddress])
+  password           String   @default("")
+  files              File[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }
 
 // Model untuk menyimpan data file yang diunggah
 model File {
-  id           Int      @id @default(autoincrement())
-  rootHash     String   @unique // Hash unik dari file
-  txHash       String   @unique // Hash transaksi blockchain
-  
-  // Relasi ke model User
-  userId       Int
-  user         User     @relation(fields: [userId], references: [id])
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id @default(cuid())
+  title     String   @default("New File")
+  rootHash  String   @unique // Hash unik dari file
+  txHash    String   @unique // Hash transaksi blockchain
+  boxId     String
+  boxes     Box      @relation(fields: [boxId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
